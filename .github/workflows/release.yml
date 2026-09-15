@@ -47,7 +47,7 @@ jobs:
         run: |
           try { ./build-release.ps1 }
           catch {
-            $message = $_.Exception.Message.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            $message = ($_.Exception.Message + "`n" + $_.ScriptStackTrace).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
             Write-Output "::error title=Release build failed::$message"
             throw
           }
@@ -55,7 +55,7 @@ jobs:
         run: |
           try { ./scripts/Test-Installer.ps1 -InstallerPath ./artifacts/release/EchoReplay-Setup-x64.exe }
           catch {
-            $message = $_.Exception.Message.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            $message = ($_.Exception.Message + "`n" + $_.ScriptStackTrace).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
             Write-Output "::error title=Installer test failed::$message"
             throw
           }

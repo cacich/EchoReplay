@@ -22,6 +22,16 @@ function Run-Checked([string]$File, [string]$Arguments, [bool]$ExpectSuccess = $
     if (-not $ExpectSuccess -and $process.ExitCode -eq 0) { throw 'Installer unexpectedly accepted a running application.' }
 }
 function Get-Startup { (Get-ItemProperty -LiteralPath $runPath -Name EchoReplay -ErrorAction SilentlyContinue).EchoReplay }
+function Get-Uninstaller {
+    # Inno can choose unins001.exe after a previous uninstall. Query the
+    # registration created by this install instead of assuming a file name.
+    $command = (Get-ItemProperty -LiteralPath $uninstallPath -Name UninstallString).UninstallString
+    $path = [IO.Path]::GetFullPath($command.Trim('"'))
+    $expectedRoot = [IO.Path]::GetFullPath($installDir).TrimEnd('\') + '\'
+    Assert-True ($path.StartsWith($expectedRoot, [StringComparison]::OrdinalIgnoreCase)) 'Uninstaller path escaped the test installation.'
+    Assert-True (Test-Path -LiteralPath $path) "Registered uninstaller is missing: $path"
+    return $path
+}
 Assert-True (-not (Test-Path -LiteralPath $settingsDir)) 'Runner already has EchoReplay settings.'
 Assert-True (-not (Test-Path -LiteralPath $uninstallPath)) 'Runner already has EchoReplay installed.'
 Assert-True (-not (Test-Path -LiteralPath $shortcut)) 'Runner already has an EchoReplay shortcut.'
@@ -32,10 +42,10 @@ New-Item -ItemType Directory -Force -Path $testRoot,$profileDir,$settingsDir | O
 $installArgs = '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR="{0}" /LOG="{1}"' -f $installDir, (Join-Path $testRoot 'install.log')
 Run-Checked $InstallerPath $installArgs
 $exe = Join-Path $installDir 'EchoReplay.exe'
-$uninstaller = Join-Path $installDir 'unins000.exe'
 Assert-True (Test-Path -LiteralPath $exe) 'Installed executable missing.'
 Assert-True (Test-Path -LiteralPath $shortcut) 'Start menu shortcut missing.'
 Assert-True (Test-Path -LiteralPath $uninstallPath) 'Windows uninstall registration missing.'
+$uninstaller = Get-Uninstaller
 Assert-True ($null -eq (Get-Startup)) 'Installation unexpectedly enabled login startup.'
 
 $snapshot = Join-Path $testRoot 'installed-ui.png'
@@ -61,6 +71,7 @@ try {
 
 # Reinstall to the same path and keep user settings and unrelated recordings.
 Run-Checked $InstallerPath $installArgs
+$uninstaller = Get-Uninstaller
 Assert-True ((Get-Content -LiteralPath $settingsFile -Raw) -eq '{"RecordOnLaunch":false,"Minutes":3}') 'Reinstall changed settings.'
 Assert-True (Test-Path -LiteralPath $userAudio) 'Reinstall removed a user file.'
 New-Item -Path $runPath -Force | Out-Null
@@ -75,6 +86,7 @@ Assert-True ((Get-Content -LiteralPath $userAudio -Raw) -eq 'retain user data') 
 
 # An entry owned by another portable copy must survive this installation's removal.
 Run-Checked $InstallerPath $installArgs
+$uninstaller = Get-Uninstaller
 $otherCommand = '"C:\OtherPortableCopy\EchoReplay.exe" --background'
 Set-ItemProperty -LiteralPath $runPath -Name EchoReplay -Value $otherCommand
 Run-Checked $uninstaller '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART'
