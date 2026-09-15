@@ -25,4 +25,5 @@ if ($Portable) {
     Copy-Item -LiteralPath (Join-Path $corePackage.FullName 'LICENSE.TXT') -Destination (Join-Path $licenses 'dotnet-LICENSE.txt') -Force
     Copy-Item -LiteralPath (Join-Path $corePackage.FullName 'THIRD-PARTY-NOTICES.TXT') -Destination (Join-Path $licenses 'dotnet-THIRD-PARTY-NOTICES.txt') -Force
     Copy-Item -LiteralPath (Join-Path $desktopPackage.FullName 'LICENSE') -Destination (Join-Path $licenses 'windowsdesktop-LICENSE.txt') -Force
+    Copy-Item -LiteralPath 'installer/Languages/INNO-LICENSE.txt' -Destination (Join-Path $licenses 'INNO-LICENSE.txt') -Force
 }

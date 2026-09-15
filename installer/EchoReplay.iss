@@ -39,7 +39,7 @@ VersionInfoVersion={#AppVersion}
 VersionInfoDescription=EchoReplay Windows installer
 
 [Languages]
-Name: "chinesetraditional"; MessagesFile: "compiler:Languages\ChineseTraditional.isl"
+Name: "chinesetraditional"; MessagesFile: "Languages\ChineseTraditional.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]

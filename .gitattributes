@@ -9,3 +9,5 @@
 *.ps1 text eol=crlf
 *.png binary
 *.ico binary
+# Preserve the upstream translation byte-for-byte, including its whitespace.
+installer/Languages/ChineseTraditional.isl -text whitespace=-blank-at-eol

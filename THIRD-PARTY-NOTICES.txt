@@ -14,3 +14,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 The portable distribution also bundles the Microsoft .NET runtime and Windows Desktop runtime.
 See the licenses/ directory for their license and third-party notices.
+
+Windows installer: Inno Setup (https://jrsoftware.org/).
+The vendored Traditional Chinese translation comes from jrsoftware/issrc,
+tag is-6_7_3, Files/Languages/Unofficial/ChineseTraditional.isl.
+Its translator credits remain in that file. Source license:
+installer/Languages/INNO-LICENSE.txt; packaged license: licenses/INNO-LICENSE.txt.
