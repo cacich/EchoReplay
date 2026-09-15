@@ -119,7 +119,7 @@ Start-Process -FilePath $exe -ArgumentList $arguments -Wait
 Compress-Archive -Path .\artifacts\EchoReplay-portable -DestinationPath .\artifacts\EchoReplay-win-x64.zip -Force
 ```
 
-發佈前應使用打包後的 EXE 實機測試，更新 `CHANGELOG.md` 與驗證紀錄。若要提供二進位下載，可將 ZIP 放到 GitHub Release；將原始碼推上 GitHub 不等於已建立 Release。
+需要安裝 EXE、免安裝 ZIP 及校驗值時，安裝 Inno Setup 6.5+ 並執行 `./build-release.ps1`。GitHub Actions 會在版本標籤推送後自動建置、測試安裝與解除安裝，並發佈附件。完整流程見 [Release 發佈說明](RELEASING.md)。
 
 Git 追蹤原始碼、圖示、測試與文件。SDK、NuGet 快取、EXE／ZIP、測試錄音、使用者設定及 SSH 金鑰不應提交。
 

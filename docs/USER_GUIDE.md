@@ -4,7 +4,9 @@ Windows 10 / 11 的純音訊即時回放工具。持續保留最近 1、3、5 �
 
 ## 開始使用
 
-執行 `artifacts/EchoReplay-portable/EchoReplay.exe`。可攜版已包含 .NET 執行環境，不必另外安裝；一般情況不需要系統管理員權限。
+從 [最新 Release](https://github.com/cacich/EchoReplay/releases/latest) 下載 `EchoReplay-Setup-x64.exe`，雙擊完成安裝後從開始功能表開啟。或下載 `EchoReplay-portable-win-x64.zip`，解壓縮整個資料夾後執行 `EchoReplay.exe`。兩者均包含 .NET 執行環境，一般情況不需要系統管理員權限。
+
+安裝版預設位置是 `%LOCALAPPDATA%\Programs\EchoReplay`。不要下載 Release 中的 Source code，除非要自行修改或編譯。
 
 1. 預設開啟即開始錄音，保留最近 **5 分鐘**。
 2. 在「設定」選擇 Discord／遊戲實際使用的播放裝置，以及自己的麥克風。
@@ -59,4 +61,9 @@ Windows 10 / 11 的純音訊即時回放工具。持續保留最近 1、3、5 �
 
 ## 移除
 
-先取消「登入 Windows 時自動執行」並套用，再由系統匣結束程式。之後可刪除程式資料夾；已儲存的錄音及使用者設定各在上述位置，不會自動刪除。
+先保存需要的音訊，再由系統匣結束程式。
+
+- **安裝版：** 從 Windows「已安裝的應用程式」移除 EchoReplay。會移除程式、捷徑與指向該安裝位置的開機啟動項目，保留錄音與使用者設定。
+- **免安裝版：** 先取消「登入 Windows 時自動執行」並套用，結束程式後再刪除程式資料夾。
+
+升級安裝版時，先結束程式，再執行新版安裝檔；設定與錄音會保留。

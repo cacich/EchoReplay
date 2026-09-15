@@ -12,6 +12,7 @@ namespace EchoReplay;
 public partial class App : Application
 {
     private Mutex? mutex;
+    private Mutex? installerGuard;
     private EventWaitHandle? activation;
     private DispatcherTimer? activationTimer;
     internal static string[] Arguments { get; private set; } = [];
@@ -29,6 +30,9 @@ public partial class App : Application
         mutex = new Mutex(true, @"Local\EchoReplay." + identity, out bool created);
         activation = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\EchoReplay.Activate." + identity);
         if (!created) { activation.Set(); Shutdown(); return; }
+        // Inno Setup checks this shared name before install/uninstall. Keeping a
+        // handle alive protects every running profile from being replaced.
+        installerGuard = new Mutex(false, @"Local\EchoReplay.Setup");
         DispatcherUnhandledException += (_, args) =>
         {
             MessageBox.Show("發生錯誤：" + args.Exception.Message, "EchoReplay", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -48,6 +52,7 @@ public partial class App : Application
     {
         activationTimer?.Stop();
         activation?.Dispose();
+        installerGuard?.Dispose();
         mutex?.Dispose();
         base.OnExit(e);
     }

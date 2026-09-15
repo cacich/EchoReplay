@@ -4,7 +4,17 @@
 
 EchoReplay 是 Windows 的純音訊即時回放工具。背景持續保留最近幾分鐘的電腦聲音與麥克風，在有趣的事情發生後，按一下快捷鍵就能存成 WAV，省去從遊戲影片擷取音訊的步驟。
 
-目前版本：**1.0.0，第一版**。已完成核心自動化測試及電腦聲音的短時間實機測試；完整驗證範圍與限制見 [驗證紀錄](VALIDATION.md)。
+目前版本：**1.0.1**。已完成核心自動化測試及電腦聲音的短時間實機測試；完整驗證範圍與限制見 [驗證紀錄](VALIDATION.md)。
+
+## 直接下載使用
+
+**[下載 Windows 安裝版](https://github.com/cacich/EchoReplay/releases/latest/download/EchoReplay-Setup-x64.exe)** · [下載免安裝 ZIP](https://github.com/cacich/EchoReplay/releases/latest/download/EchoReplay-portable-win-x64.zip) · [查看最新 Release](https://github.com/cacich/EchoReplay/releases/latest)
+
+下載安裝版後雙擊，依畫面完成安裝，再從開始功能表開啟 **EchoReplay**。不需要下載原始碼或另外安裝 .NET。適用於 Windows x64，最低 Windows 10 1809；Windows 10／11 的不同硬體情境仍需實際驗證。
+
+安裝在目前使用者的資料夾，不需要管理員權限。免安裝版請先解壓縮整個 ZIP，再執行 `EchoReplay.exe`。GitHub Release 中的 **Source code** 是原始碼，一般使用者不用下載。
+
+目前程式尚未簽章，Windows 可能顯示不明發行者或 SmartScreen 提示；請確認下載來源是本專案的 GitHub Release。
 
 ![EchoReplay 主畫面，暫停狀態](docs/images/main-window.png)
 
@@ -23,11 +33,9 @@ EchoReplay 是 Windows 的純音訊即時回放工具。背景持續保留最近
 
 音訊擷取與存檔在本機完成，程式沒有音訊上傳功能。
 
-## 取得與執行
+## 從原始碼建置（開發者）
 
 此 Git 儲存庫提供原始碼、圖示、文件、建置腳本與測試；**編譯後的 EXE／ZIP 不放在 Git 歷史中**。
-
-### 從原始碼建置
 
 需要 Windows x64、PowerShell、Git，以及 **.NET 10 SDK**。SDK 請由 [Microsoft 官方網站](https://dotnet.microsoft.com/download/dotnet/10.0) 安裝。首次建置需要連線到 NuGet 下載相依套件。
 
@@ -71,6 +79,7 @@ cd EchoReplay
 | --- | --- |
 | [使用指南](docs/USER_GUIDE.md) | 錄音、快捷鍵、背景執行、輸出檔案與設定 |
 | [製作說明](docs/DEVELOPMENT.md) | 專案背景、開發環境、建置、測試與打包 |
+| [Release 發佈說明](docs/RELEASING.md) | 安裝程式、自動發佈與版本更新 |
 | [架構說明](docs/ARCHITECTURE.md) | 音訊流程、循環緩衝、同步與模組責任 |
 | [疑難排解](docs/TROUBLESHOOTING.md) | 無聲、裝置中斷、快捷鍵及啟動問題 |
 | [驗證紀錄](VALIDATION.md) | 已完成的測試、實機結果及未驗證項目 |
@@ -88,6 +97,10 @@ EchoReplay/
 ├─ tests/EchoReplay.Tests/     # 自動化測試執行程式
 ├─ docs/                      # 使用、開發、架構與排錯文件
 ├─ build.ps1                  # 測試、發佈與文件打包
+├─ build-release.ps1          # 安裝 EXE、免安裝 ZIP 與校驗值
+├─ installer/                 # Inno Setup 安裝設定
+├─ scripts/                   # 安裝驗收腳本
+├─ .github/workflows/         # 版本標籤觸發的發佈流程
 ├─ README.md
 ├─ VALIDATION.md
 ├─ CHANGELOG.md
