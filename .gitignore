@@ -1,0 +1,23 @@
+.tools/
+**/bin/
+**/obj/
+artifacts/
+TestResults/
+.vs/
+*.user
+*.suo
+# User data and credentials stay local
+settings.json
+*.wav
+*.mp3
+*.flac
+*.partial/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_ed25519*
+id_rsa*
+Thumbs.db
+.DS_Store
