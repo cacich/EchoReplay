@@ -38,6 +38,8 @@ public partial class MainWindow : Window
     {
         this.settings = settings;
         InitializeComponent();
+        Width = Math.Min(Width, SystemParameters.WorkArea.Width);
+        Height = Math.Min(Height, SystemParameters.WorkArea.Height);
         Editor.Configure(() => this.settings.OutputFolder);
         Editor.ClipDeleted += path => { if (lastClip is not null && Path.Combine(lastClip, "混音.wav") == path) { lastClip = null; LastSavedText.Text = "最新原始錄音已刪除。"; PlayButton.IsEnabled = ShowClipButton.IsEnabled = false; } };
         foreach (var box in new[] { SaveKeyBox, ShowKeyBox })
@@ -124,6 +126,11 @@ public partial class MainWindow : Window
             UpdateLayout();
             await Task.Delay(300);
             SaveVisual(Path.Combine(Path.GetDirectoryName(snapshot)!, Path.GetFileNameWithoutExtension(snapshot) + "-settings.png"));
+            if (App.Arguments.Contains("--application-demo"))
+            {
+                SettingsScroller.ScrollToVerticalOffset(SettingsScroller.VerticalOffset + CaptureModeCard.TranslatePoint(new Point(), SettingsScroller).Y); await Task.Delay(200);
+                SaveVisual(Path.Combine(Path.GetDirectoryName(snapshot)!, Path.GetFileNameWithoutExtension(snapshot) + "-capture-settings.png"));
+            }
             SettingsScroller.ScrollToEnd();
             await Task.Delay(300);
             SaveVisual(Path.Combine(Path.GetDirectoryName(snapshot)!, Path.GetFileNameWithoutExtension(snapshot) + "-settings-bottom.png"));
@@ -146,6 +153,16 @@ public partial class MainWindow : Window
         ShowKeyBox.Text = settings.ShowHotkey;
         SystemGainSlider.Value = settings.SystemGain;
         MicGainSlider.Value = settings.MicrophoneGain;
+        GameGainSlider.Value = settings.GameGain;
+        foreach (ComboBoxItem item in CaptureModeBox.Items)
+        {
+            item.IsEnabled = (string)item.Tag == CaptureModes.Device || CaptureModes.ProcessSupported;
+            if ((string)item.Tag == settings.CaptureMode) CaptureModeBox.SelectedItem = item;
+        }
+        RefreshProcesses();
+        VoiceProcessBox.Text = settings.VoiceProcessName + ".exe";
+        GameProcessBox.Text = string.IsNullOrEmpty(settings.GameProcessName) ? "" : settings.GameProcessName + ".exe";
+        UpdateCaptureModeForm();
         RefreshDevices(settings.OutputDeviceId, settings.MicrophoneDeviceId);
     }
     private void RefreshDevices(string outputId, string microphoneId)
@@ -175,7 +192,12 @@ public partial class MainWindow : Window
         BufferTime.Text = TimeSpan.FromSeconds(seconds).ToString(@"mm\:ss");
         BufferProgress.Value = seconds / (engine.BufferMinutes * 60) * 100;
         RetentionLabel.Text = $" / {engine.BufferMinutes:00}:00";
-        bool healthy = engine.Running && engine.SystemSource?.Connected == true && (!settings.CaptureMicrophone || engine.MicrophoneSource?.Connected == true);
+        bool healthy = engine.Running && engine.SourcesHealthy;
+        SystemSourceTitle.Text = engine.CaptureMode == CaptureModes.Applications ? "語音聊天音軌" : "電腦聲音";
+        GameSourceCard.Visibility = engine.HasGame ? Visibility.Visible : Visibility.Collapsed;
+        GameDeviceText.Text = engine.GameSource?.Status ?? "已暫停";
+        SetMeter(GameMeter, GameLevelText, engine.GameSource);
+        Editor.SetCaptureMode(engine.Running, engine.CaptureMode);
         RecordingStatus.Text = engine.Running ? healthy ? "● 正在背景錄音" : "● 音訊來源連接中／部分中斷" : "○ 已暫停 · 緩衝仍可儲存";
         RecordingStatus.Foreground = new SolidColorBrush(healthy ? Color.FromRgb(136, 227, 196) : Color.FromRgb(239, 198, 123));
         tray.Text = engine.Running ? healthy ? "EchoReplay · 正在錄音" : "EchoReplay · 音訊來源連接中／中斷" : "EchoReplay · 已暫停";
@@ -198,7 +220,7 @@ public partial class MainWindow : Window
         if (engine.Running && !healthy && seconds > 5 && !wasUnhealthy)
         {
             wasUnhealthy = true;
-            Notify("音訊來源中斷", "請檢查裝置；EchoReplay 會繼續嘗試連線。", true);
+            Notify("等待音訊來源", "請確認選擇的程式已啟動、裝置已連線；EchoReplay 會繼續嘗試連線。", true);
         }
         if (healthy && wasUnhealthy) { wasUnhealthy = false; SetNotice("音訊來源已重新連線，繼續錄製。中斷期間的聲音無法補回。"); }
     }
@@ -207,7 +229,7 @@ public partial class MainWindow : Window
         float peak = source?.Peak ?? 0;
         double db = peak > 0.00001 ? 20 * Math.Log10(peak) : -100;
         meter.Value = Math.Clamp((db + 60) / 60 * 100, 0, 100);
-        label.Text = source?.Connected != true ? "尚未擷取音訊" : db < -60 ? "目前安靜 · 裝置已連接" : $"{db:0.0} dBFS";
+        label.Text = source?.Connected != true ? "尚未擷取音訊" : db < -60 ? "目前安靜 · 來源已連接" : $"{db:0.0} dBFS";
     }
     private void StartRecording()
     {
@@ -235,7 +257,7 @@ public partial class MainWindow : Window
         if (engine.Saving) return;
         try
         {
-            bool incomplete = engine.Running && (engine.SystemSource?.Connected != true || (settings.CaptureMicrophone && engine.MicrophoneSource?.Connected != true));
+            bool incomplete = engine.Running && !engine.SourcesHealthy;
             lastClip = await engine.SaveAsync(settings with { });
             LastSavedText.Text = lastClip;
             await Editor.RefreshLibrary();
@@ -299,9 +321,11 @@ public partial class MainWindow : Window
                 Minutes = (int)(MinutesBox.SelectedItem ?? 5), OutputFolder = output,
                 OutputDeviceId = (string?)OutputDeviceBox.SelectedValue ?? "", MicrophoneDeviceId = (string?)MicrophoneDeviceBox.SelectedValue ?? "",
                 CaptureMicrophone = MicrophoneBox.IsChecked == true, SaveSeparateTracks = SeparateBox.IsChecked == true,
+                CaptureMode = SelectedCaptureMode(), VoiceProcessName = ProcessCatalog.Normalize(VoiceProcessBox.Text), GameProcessName = ProcessCatalog.Normalize(GameProcessBox.Text), GameGain = GameGainSlider.Value,
                 RecordOnLaunch = RecordOnLaunchBox.IsChecked == true, RunAtLogin = RunAtLoginBox.IsChecked == true, StartHidden = StartHiddenBox.IsChecked == true,
                 SaveHotkey = SaveKeyBox.Text, ShowHotkey = ShowKeyBox.Text, SystemGain = SystemGainSlider.Value, MicrophoneGain = MicGainSlider.Value
             };
+            CaptureModes.Validate(updated);
             hotkeys!.Apply(updated.SaveHotkey, updated.ShowHotkey);
             hotkeysApplied = true;
             if (updated.RunAtLogin || updated.RunAtLogin != previous.RunAtLogin)
@@ -310,7 +334,8 @@ public partial class MainWindow : Window
                 startupChanged = true;
             }
             SettingsStore.Save(updated);
-            bool restart = updated.Minutes != previous.Minutes || updated.OutputDeviceId != previous.OutputDeviceId || updated.MicrophoneDeviceId != previous.MicrophoneDeviceId || updated.CaptureMicrophone != previous.CaptureMicrophone;
+            bool restart = updated.Minutes != previous.Minutes || updated.OutputDeviceId != previous.OutputDeviceId || updated.MicrophoneDeviceId != previous.MicrophoneDeviceId || updated.CaptureMicrophone != previous.CaptureMicrophone
+                || updated.CaptureMode != previous.CaptureMode || updated.VoiceProcessName != previous.VoiceProcessName || updated.GameProcessName != previous.GameProcessName;
             settings = updated;
             _ = Editor.RefreshLibrary();
             UpdateLabels();
@@ -348,6 +373,29 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog(this) == true) OutputBox.Text = dialog.FolderName;
     }
     private void RefreshDevices_Click(object sender, RoutedEventArgs e) => RefreshDevices((string?)OutputDeviceBox.SelectedValue ?? "", (string?)MicrophoneDeviceBox.SelectedValue ?? "");
+    private string SelectedCaptureMode() => (CaptureModeBox.SelectedItem as ComboBoxItem)?.Tag as string ?? CaptureModes.Device;
+    private void CaptureMode_Changed(object sender, SelectionChangedEventArgs e) => UpdateCaptureModeForm();
+    private void UpdateCaptureModeForm()
+    {
+        if (CaptureModeHelp is null || ApplicationSettings is null || OutputDeviceBox is null || SystemGainLabel is null) return;
+        string mode = SelectedCaptureMode();
+        ApplicationSettings.Visibility = mode == CaptureModes.Applications ? Visibility.Visible : Visibility.Collapsed;
+        OutputDeviceBox.IsEnabled = mode == CaptureModes.Device;
+        SeparateBox.IsEnabled = mode != CaptureModes.Applications;
+        if (mode == CaptureModes.Applications) SeparateBox.IsChecked = true;
+        SystemGainLabel.Text = mode == CaptureModes.Applications ? "語音聊天" : "電腦聲音";
+        CaptureModeHelp.Text = !CaptureModes.ProcessSupported ? "此 Windows 版本僅支援指定播放裝置；程式分軌與排除試聽需要 Windows 11（或 build 20348 以上）。"
+            : mode == CaptureModes.Device ? "錄製所選裝置的全部聲音，包含 EchoReplay 試聽。切換下列新模式可排除試聽。"
+            : mode == CaptureModes.System ? "錄製所有播放裝置的程式聲音，排除本次 EchoReplay 及子程序。麥克風仍依下方設定錄製。"
+            : "分別錄製所選語音程式與遊戲（含子程序），不受播放裝置限制；EchoReplay 試聽不會進入這兩軌。";
+    }
+    private void RefreshProcesses()
+    {
+        string voice = VoiceProcessBox.Text, game = GameProcessBox.Text;
+        try { var choices = ProcessCatalog.Choices(); VoiceProcessBox.ItemsSource = choices; GameProcessBox.ItemsSource = choices; VoiceProcessBox.Text = voice; GameProcessBox.Text = game; }
+        catch (Exception ex) { SetNotice("無法列出程式，仍可手動輸入名稱：" + ex.Message, true); }
+    }
+    private void RefreshProcesses_Click(object sender, RoutedEventArgs e) => RefreshProcesses();
     private void ResetSettings_Click(object sender, RoutedEventArgs e) { LoadForm(); SetNotice("已還原尚未套用的變更。"); }
     private async void Save_Click(object sender, RoutedEventArgs e) => await SaveClip();
     private void Record_Click(object sender, RoutedEventArgs e) => ToggleRecording();

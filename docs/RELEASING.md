@@ -34,7 +34,7 @@
 .\build-release.ps1 -InnoCompiler 'C:\Tools\Inno Setup 6\ISCC.exe'
 ```
 
-腳本會執行應用程式的 31 項測試，建置含 .NET 的可攜版，將指定的程式與文件加入獨立暫存目錄，再產生安裝 EXE、ZIP 與校驗值至 `artifacts/release`。不會從既有輸出目錄任意打包其他檔案。
+腳本會執行應用程式的 37 項測試，建置含 .NET 的可攜版，將指定的程式與文件加入獨立暫存目錄，再產生安裝 EXE、ZIP 與校驗值至 `artifacts/release`。不會從既有輸出目錄任意打包其他檔案。
 
 版本讀自 `src/EchoReplay/EchoReplay.csproj` 的 `Version`，目前接受 `major.minor.patch` 正式版格式。
 

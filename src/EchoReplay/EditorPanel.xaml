@@ -15,7 +15,7 @@
       <DockPanel Grid.Column="2" LastChildFill="True">
         <StackPanel x:Name="EditorFooter" IsEnabled="False" DockPanel.Dock="Bottom" Margin="0,10,8,0">
             <WrapPanel><Button Content="保存編輯進度" Click="SaveProject_Click" Margin="0,0,8,8" Padding="12,9"/><ComboBox x:Name="FormatBox" SelectedIndex="0" Width="158" Margin="0,0,8,8"><ComboBoxItem Content="MP3 · 192 kbps"/><ComboBoxItem Content="MP3 · 320 kbps"/><ComboBoxItem Content="WAV · 無損"/></ComboBox><Button Content="匯出成品" Click="Export_Click" Style="{StaticResource PrimaryButton}" Padding="16,9" Margin="0,0,0,8"/></WrapPanel>
-            <TextBlock Text="試聽聲音也會被目前的電腦錄音收錄。背景錄音會持續；如不希望收錄試聽，可自行暫停錄音。" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,4,0,0"/>
+            <TextBlock x:Name="PreviewNotice" Text="試聽聲音也會被目前的電腦錄音收錄。背景錄音會持續；如不希望收錄試聽，可自行暫停錄音。" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,4,0,0"/>
         </StackPanel>
       <ScrollViewer x:Name="EditorScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="0,0,8,0">
@@ -34,6 +34,7 @@
                 <StackPanel><CheckBox x:Name="SystemEnabled" Content="電腦聲音" IsChecked="True"/><Slider x:Name="SystemVolume" Minimum="0" Maximum="2" Value="1" TickFrequency="0.05" IsSnapToTickEnabled="True"/><TextBlock Text="{Binding ElementName=SystemVolume, Path=Value, StringFormat={}{0:P0}}" Foreground="{StaticResource MutedBrush}"/></StackPanel>
                 <StackPanel Grid.Column="2" x:Name="MicrophoneControls"><CheckBox x:Name="MicrophoneEnabled" Content="麥克風" IsChecked="True"/><Slider x:Name="MicrophoneVolume" Minimum="0" Maximum="2" Value="1" TickFrequency="0.05" IsSnapToTickEnabled="True"/><TextBlock Text="{Binding ElementName=MicrophoneVolume, Path=Value, StringFormat={}{0:P0}}" Foreground="{StaticResource MutedBrush}"/></StackPanel>
               </Grid>
+              <StackPanel x:Name="GameControls" Visibility="Collapsed" Margin="0,6,0,0"><CheckBox x:Name="GameEnabled" Content="遊戲音軌" IsChecked="True"/><Slider x:Name="GameVolume" Minimum="0" Maximum="2" Value="1" TickFrequency="0.05" IsSnapToTickEnabled="True"/><TextBlock Text="{Binding ElementName=GameVolume, Path=Value, StringFormat={}{0:P0}}" Foreground="{StaticResource MutedBrush}"/></StackPanel>
               <WrapPanel Margin="0,8,0,0"><TextBlock Text="淡入（秒）" VerticalAlignment="Center"/><TextBox x:Name="FadeInBox" Text="0" Width="60" Margin="5,0,10,0"/><TextBlock Text="淡出" VerticalAlignment="Center"/><TextBox x:Name="FadeOutBox" Text="0" Width="60" Margin="5,0,8,0"/><Button Content="套用音量與淡化" Click="Effects_Click" Padding="9,6"/></WrapPanel>
             </StackPanel></Border>
           </StackPanel>

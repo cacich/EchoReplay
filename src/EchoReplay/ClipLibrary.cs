@@ -91,7 +91,7 @@ public static class ClipLibrary
             if (!string.Equals(Path.GetDirectoryName(folder), root, StringComparison.OrdinalIgnoreCase) || !Path.Combine(folder, "混音.wav").Equals(audio, StringComparison.OrdinalIgnoreCase)
                 || !File.Exists(Path.Combine(folder, "錄音資訊.json"))) throw new IOException("錄音不在目前音檔庫中，請重新整理。");
             if ((File.GetAttributes(folder) & FileAttributes.ReparsePoint) != 0 || Directory.EnumerateDirectories(folder).Any()) throw new IOException("資料夾含有其他目錄，請使用檔案總管檢查後再刪除。");
-            string[] allowed = ["混音.wav", "電腦聲音.wav", "麥克風.wav", "錄音資訊.json", "混音.wav.echoedit.json", "混音.wav.label.json"];
+            string[] allowed = ["混音.wav", "電腦聲音.wav", "語音聊天.wav", "遊戲.wav", "麥克風.wav", "錄音資訊.json", "混音.wav.echoedit.json", "混音.wav.label.json"];
             if (Directory.EnumerateFiles(folder).Any(f => !allowed.Contains(Path.GetFileName(f), StringComparer.OrdinalIgnoreCase) || (File.GetAttributes(f) & FileAttributes.ReparsePoint) != 0))
                 throw new IOException("資料夾含有其他檔案（可能是成品），為避免誤刪，請先移出其他檔案。");
             return folder;

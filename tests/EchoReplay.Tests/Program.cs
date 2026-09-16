@@ -8,8 +8,11 @@ internal static class Program
 {
     private static int passed;
     [STAThread]
-    private static int Main()
+    private static int Main(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--tone") return ProcessCaptureTests.Tone(args);
+        if (args.Length > 1 && args[0] == "--process-capture") return ProcessCaptureTests.Probe(args[1]);
+        if (args.Length > 1 && args[0] == "--engine-capture") return ProcessCaptureTests.EngineProbe(args[1]);
         string directory = Path.GetFullPath(Path.Combine("artifacts", "test-unit"));
         Directory.CreateDirectory(directory);
         try
@@ -140,6 +143,7 @@ internal static class Program
                     () => { for (int i = 0; i < 300; i++) Check(ring.Snapshot(i * 480L, 480).Length == 960, "snapshot length"); });
             });
             EditingTests.RunAll(directory, Run, Check);
+            ProcessAudioTests.RunAll(directory, Run, Check);
             Console.WriteLine($"PASS: {passed} tests");
             return 0;
         }

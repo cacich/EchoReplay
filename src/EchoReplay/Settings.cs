@@ -11,6 +11,10 @@ public sealed record AppSettings
     public string OutputFolder { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyMusic), "EchoReplay");
     public string OutputDeviceId { get; set; } = "";
     public string MicrophoneDeviceId { get; set; } = "";
+    public string CaptureMode { get; set; } = CaptureModes.Device;
+    public string VoiceProcessName { get; set; } = "Discord";
+    public string GameProcessName { get; set; } = "";
+    public double GameGain { get; set; } = 1;
     public bool CaptureMicrophone { get; set; } = true;
     public bool SaveSeparateTracks { get; set; } = true;
     public bool RecordOnLaunch { get; set; } = true;
@@ -39,6 +43,10 @@ public static class SettingsStore
             if (!double.IsFinite(settings.MicrophoneGain)) settings.MicrophoneGain = 1;
             settings.SystemGain = Math.Clamp(settings.SystemGain, 0, 2);
             settings.MicrophoneGain = Math.Clamp(settings.MicrophoneGain, 0, 2);
+            settings.GameGain = double.IsFinite(settings.GameGain) ? Math.Clamp(settings.GameGain, 0, 2) : 1;
+            // Keep unsupported process settings visible. Never silently broaden an app-only recording.
+            settings.VoiceProcessName = ProcessCatalog.Normalize(settings.VoiceProcessName);
+            settings.GameProcessName = ProcessCatalog.Normalize(settings.GameProcessName);
             try
             {
                 if (Hotkey.Parse(settings.SaveHotkey) == Hotkey.Parse(settings.ShowHotkey)) throw new ArgumentException();

@@ -1,10 +1,23 @@
 # 架構說明
 
+## 1.2 程式擷取
+
+`CaptureModes` 定義三種模式：原有裝置 loopback、排除本次 EchoReplay 程序樹的全系統擷取，以及分別包含語音／遊戲程序樹的擷取。後兩者使用 Windows `ActivateAudioInterfaceAsync`、`VAD\\Process_Loopback` 與 VT_BLOB 的 `AUDIOCLIENT_ACTIVATION_PARAMS`，需要 build 20348 以上。參考 [Microsoft 程式擷取範例](https://learn.microsoft.com/en-us/samples/microsoft/windows-classic-samples/applicationloopbackaudio-sample/)。
+
+- `ProcessAudioClient` 在 MTA 背景執行緒非同步啟用 IAudioClient，completion handler 宣告 IAgileObject。啟用有取消／10 秒逾時；原生 API 沒有取消介面，因此晚到 callback 完成前仍保留參數記憶體與 COM operation，完成後釋放。
+- `ProcessCatalog` 以 Toolhelp 快照取得目前 Windows session 的程序名稱與父子關係。Electron 同名子程序會提升到根程序；保存的是名稱而非易失效 PID。多根時保留當前 PID，第一次依 PID 排序選一個根。排除 EchoReplay 自己、祖先與子程序，避免把試聽收進指定程式軌。
+- 防止同名或重疊程序樹造成重複收錄；執行期間亦定期重檢。選不到來源時等待，不會改為擷取全系統。
+- `CaptureSource` 的裝置與程序模式共用 QPC 取樣定位與封包處理。程序模式使用 WASAPI event callback，持有最低需求的 query-limited／synchronize handle 辨認程序生命週期，避免 PID 重用誤認。約每 2 秒檢查退出／來源變更，失敗後約 2 秒重試，緩衝及共同時鐘不重設。
+- `ReplayEngine` 最多建立語音立體聲、遊戲立體聲與麥克風單聲道三個循環緩衝。存檔切點一致，分軌模式強制保存原始來源，混音套用三個音量後只限幅一次。JSON 記錄擷取模式、程序名稱、存檔當下 PID、來源狀態及各軌增益。
+- 剪輯器將 `System` 來源在程序模式下視為語音軌，額外載入遊戲軌，共用現有 edit spans；`GameGain` 為舊進度可省略的新欄位，預設 1。舊裝置音檔及 1.1 進度仍能開啟。
+
+依程序擷取跨播放裝置，但不分離同一程序樹內的朋友／分頁。麥克風的實體回音不受排除播放程序影響。新模式不支援的系統需手動選裝置模式；升級不改變舊設定的擷取範圍。
+
 ## 1.1 剪輯模組
 
 - `ClipLibrary` 掃描輸出根目錄的錄音群組及 `Exports` 成品；匯入會建立 WAV 副本。刪除前驗證直接父目錄、已知檔名及重新解析點，透過 Windows Shell 移至資源回收筒，不使用永久刪除的備援路徑。
 - `EditAudio` 載入最多 15 分鐘的單／雙聲道來源，正規化為 48 kHz PCM。錄音有分軌時使用原始分軌；只有混音時使用單一來源。
-- `EditHistory` 使用整數 frame 記錄來源區間與靜音標記；裁切與刪除在目前時間軸計算，再映射回原始來源。兩軌共用相同區間，因此不會因剪輯失去同步。
+- `EditHistory` 使用整數 frame 記錄來源區間與靜音標記；裁切與刪除在目前時間軸計算，再映射回原始來源。所有音軌共用相同區間，因此不會因剪輯失去同步。
 - `EditPcmStream` 串流產生雙聲道 PCM，套用分軌增益、限幅及整段淡入淡出。播放與匯出共用同一實作，避免兩者結果不同。單一音檔的 100% 音量不會再次限幅。
 - `WaveformView` 繪製每 5 ms 的峰值摘要，支援拖曳選取、縮放與平移；不為每個取樣建立 WPF 元素。
 - `EditFiles` 將進度存為帶版本的 JSON，以來源檔名、長度、修改時間檢查來源是否變更；先寫暫存檔再替換。成品同樣在成功編碼後才取代目的檔案，取消不損壞舊檔。
@@ -12,7 +25,7 @@
 
 MP3 編碼／解碼使用現有 NAudio.Wasapi 所封裝的 Windows Media Foundation，不隨程式分發 FFmpeg 或額外編碼器。WAV 使用 NAudio 的 PCM 讀寫。Windows N／移除媒體元件的系統需補裝媒體功能才能使用 MP3。
 
-進度只記錄目前結果，不保存跨程式重啟的 undo stack。剪輯預覽仍屬於系統播放聲音，會被 loopback 收錄；排除自身播放屬於後續錄音來源分離工作。
+進度只記錄目前結果，不保存跨程式重啟的 undo stack。指定播放裝置模式仍會收錄試聽；1.2 的程序模式排除本次 EchoReplay 播放。
 
 [回到專案首頁](../README.md)
 
@@ -78,7 +91,7 @@ flowchart TD
 1. 使用 `Interlocked` 防止重複儲存工作同時執行。
 2. 在按鍵當下記錄結束影格，計算最多保留指定分鐘數的共同範圍。
 3. 等待 150 ms，讓涵蓋按鍵時刻的擷取封包有機會抵達。
-4. 在背景工作中複製兩個來源的相同時間範圍。
+4. 在背景工作中複製啟用來源的相同時間範圍。
 5. 建立唯一的 `.Replay_….partial` 目錄，寫入混音、選用分軌及資訊 JSON。
 6. 所有檔案完成後，把暫存目錄改名為正式片段目錄。
 

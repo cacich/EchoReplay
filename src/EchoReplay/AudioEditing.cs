@@ -11,7 +11,7 @@ namespace EchoReplay;
 
 public sealed record EditSpan(int SourceStart, int Frames, bool Muted = false);
 public sealed record EditState(EditSpan[] Spans, double SystemGain = 1, double MicrophoneGain = 1,
-    double FadeIn = 0, double FadeOut = 0)
+    double FadeIn = 0, double FadeOut = 0, double GameGain = 1)
 {
     public int Frames => Spans.Sum(s => s.Frames);
 }
@@ -67,16 +67,22 @@ public sealed class EditAudio
     public required string[] SourcePaths { get; init; }
     public required AudioSource System { get; init; }
     public AudioSource? Microphone { get; init; }
+    public AudioSource? Game { get; init; }
+    public bool Applications { get; init; }
     public bool Separate { get; init; }
-    public int Frames => Math.Max(System.Frames, Microphone?.Frames ?? 0);
+    public int Frames => Math.Max(Math.Max(System.Frames, Microphone?.Frames ?? 0), Game?.Frames ?? 0);
     public static EditAudio Load(string mainPath, CancellationToken cancellation = default)
     {
         string folder = Path.GetDirectoryName(mainPath)!;
         string system = Path.Combine(folder, "電腦聲音.wav"), mic = Path.Combine(folder, "麥克風.wav");
+        string voice = Path.Combine(folder, "語音聊天.wav"), game = Path.Combine(folder, "遊戲.wav");
+        bool applications = Path.GetFileName(mainPath) == "混音.wav" && File.Exists(voice);
+        if (applications) system = voice;
         bool separate = Path.GetFileName(mainPath) == "混音.wav" && File.Exists(system);
-        var paths = separate ? File.Exists(mic) ? new[] { system, mic } : new[] { system } : new[] { mainPath };
+        var paths = separate ? new[] { system, mic, applications ? game : "" }.Where(File.Exists).ToArray() : new[] { mainPath };
         var audio = new EditAudio { MainPath = Path.GetFullPath(mainPath), SourcePaths = paths,
-            System = ReadSource(paths[0], cancellation), Microphone = paths.Length > 1 ? ReadSource(paths[1], cancellation) : null, Separate = separate };
+            System = ReadSource(paths[0], cancellation), Microphone = separate && File.Exists(mic) ? ReadSource(mic, cancellation) : null,
+            Game = applications && File.Exists(game) ? ReadSource(game, cancellation) : null, Applications = applications, Separate = separate };
         if (audio.Frames == 0) throw new InvalidDataException("音檔沒有可編輯的聲音。");
         return audio;
     }
@@ -114,6 +120,7 @@ public sealed class EditAudio
         if (state is null || state.Spans is null || state.Spans.Length is 0 or > 10000 || state.Spans.Any(s => s is null || s.Frames <= 0 || s.SourceStart < 0 || (long)s.SourceStart + s.Frames > Frames)
             || state.Spans.Sum(s => (long)s.Frames) > MaxFrames || !double.IsFinite(state.SystemGain) || state.SystemGain is < 0 or > 2
             || !double.IsFinite(state.MicrophoneGain) || state.MicrophoneGain is < 0 or > 2
+            || !double.IsFinite(state.GameGain) || state.GameGain is < 0 or > 2
             || !double.IsFinite(state.FadeIn) || state.FadeIn is < 0 or > 10 || !double.IsFinite(state.FadeOut) || state.FadeOut is < 0 or > 10)
             throw new InvalidDataException("編輯進度不正確，無法載入。");
     }
@@ -156,7 +163,8 @@ public sealed class EditPcmStream : WaveStream
             if (state.FadeOut > 0) fade = Math.Min(fade, (state.Frames - 1 - frame) / (state.FadeOut * EditAudio.Rate));
             for (int channel = 0; channel < 2; channel++)
             {
-                double value = span.Muted ? 0 : audio.System.Sample(sourceFrame, channel) * state.SystemGain + (audio.Microphone?.Sample(sourceFrame, channel) ?? 0) * state.MicrophoneGain;
+                double value = span.Muted ? 0 : audio.System.Sample(sourceFrame, channel) * state.SystemGain + (audio.Microphone?.Sample(sourceFrame, channel) ?? 0) * state.MicrophoneGain
+                    + (audio.Game?.Sample(sourceFrame, channel) ?? 0) * state.GameGain;
                 double magnitude = Math.Abs(value);
                 if (magnitude > 0.8 && (audio.Separate || state.SystemGain > 1)) value = Math.Sign(value) * (0.8 + 0.2 * Math.Tanh((magnitude - 0.8) / 0.2));
                 short sample = (short)Math.Clamp((int)Math.Round(value * fade * 32768), -32768, 32767);
@@ -183,7 +191,8 @@ public static class EditFiles
             using var json = JsonDocument.Parse(File.ReadAllText(metadata));
             if (json.RootElement.TryGetProperty("SystemGain", out var system) && json.RootElement.TryGetProperty("MicrophoneGain", out var mic))
             {
-                var next = state with { SystemGain = system.GetDouble(), MicrophoneGain = mic.GetDouble() };
+                var next = state with { SystemGain = system.GetDouble(), MicrophoneGain = mic.GetDouble(),
+                    GameGain = json.RootElement.TryGetProperty("GameGain", out var gameGain) ? gameGain.GetDouble() : 1 };
                 audio.Validate(next); return next;
             }
         }

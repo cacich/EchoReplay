@@ -50,6 +50,13 @@ public partial class EditorPanel : UserControl
         timer.Start();
     }
     public void Configure(Func<string> outputFolder) => root = outputFolder;
+    public void SetCaptureMode(bool running, string mode)
+    {
+        string message = !running ? "目前錄音已暫停。可直接試聽與剪輯。"
+            : mode == CaptureModes.Device ? "指定裝置模式會收錄 EchoReplay 試聽；可在設定改用排除試聽的模式。"
+            : "背景錄音持續，電腦音軌已排除本次 EchoReplay 試聽；若使用喇叭，麥克風仍可能收到播放聲音。";
+        if (PreviewNotice.Text != message) PreviewNotice.Text = message;
+    }
     internal void ScrollEffectsIntoView() => EditorScroller.ScrollToEnd();
     public async Task RefreshLibrary(string? selectedPath = null)
     {
@@ -103,9 +110,11 @@ public partial class EditorPanel : UserControl
             audio = loaded; history = new(state); current = clip; dirty = false;
             ClipTitle.Text = clip.Name; EditorBody.IsEnabled = EditorFooter.IsEnabled = true;
             EditorScroller.ScrollToTop();
-            SystemEnabled.Content = loaded.Separate ? "電腦聲音" : "音檔／混音";
+            SystemEnabled.Content = loaded.Applications ? "語音聊天音軌" : loaded.Separate ? "電腦聲音" : "音檔／混音";
             MicrophoneControls.IsEnabled = loaded.Microphone is not null;
-            TrackInfo.Text = loaded.Separate ? "原始分軌可各自調整；所有剪輯會保持兩軌同步。" : "此音檔只有混音，無法單獨移除其中的人聲或遊戲聲。";
+            GameControls.Visibility = loaded.Game is null ? Visibility.Collapsed : Visibility.Visible;
+            TrackInfo.Text = loaded.Applications ? loaded.Game is not null ? "關閉遊戲音軌即可只保留語音與麥克風。所有音軌共用相同剪輯時間。" : "此片段沒有遊戲音軌，可調整語音與麥克風。"
+                : loaded.Separate ? "原始分軌可各自調整；所有剪輯會保持兩軌同步。" : "此音檔只有混音，無法單獨移除其中的人聲或遊戲聲。";
             Present(peaks, true);
             Status(warning ?? "已載入。拖曳波形選取，或直接選最後幾秒。");
         });
@@ -120,6 +129,7 @@ public partial class EditorPanel : UserControl
         else Waveform.SetSelection(Math.Min(Waveform.SelectionStart, Waveform.Duration), Math.Min(Waveform.SelectionEnd, Waveform.Duration));
         SystemEnabled.IsChecked = state.SystemGain > 0; SystemVolume.Value = state.SystemGain > 0 ? state.SystemGain : 1;
         MicrophoneEnabled.IsChecked = state.MicrophoneGain > 0; MicrophoneVolume.Value = state.MicrophoneGain > 0 ? state.MicrophoneGain : 1;
+        GameEnabled.IsChecked = state.GameGain > 0; GameVolume.Value = state.GameGain > 0 ? state.GameGain : 1;
         FadeInBox.Text = state.FadeIn.ToString("0.###"); FadeOutBox.Text = state.FadeOut.ToString("0.###");
         UndoButton.IsEnabled = history.CanUndo; RedoButton.IsEnabled = history.CanRedo;
         ClipInfo.Text = $"原始 {audio.Frames / (double)EditAudio.Rate:0.000} 秒 → 成品 {Waveform.Duration:0.000} 秒 · {state.Spans.Length} 個片段" + (dirty ? " · 尚未保存進度" : "");
@@ -230,7 +240,8 @@ public partial class EditorPanel : UserControl
         await Change(() =>
         {
             var next = history!.Current with { SystemGain = SystemEnabled.IsChecked == true ? SystemVolume.Value : 0,
-                MicrophoneGain = MicrophoneEnabled.IsChecked == true ? MicrophoneVolume.Value : 0, FadeIn = Number(FadeInBox), FadeOut = Number(FadeOutBox) };
+                MicrophoneGain = MicrophoneEnabled.IsChecked == true ? MicrophoneVolume.Value : 0, GameGain = GameEnabled.IsChecked == true ? GameVolume.Value : 0,
+                FadeIn = Number(FadeInBox), FadeOut = Number(FadeOutBox) };
             if (next.FadeIn is < 0 or > 10 || next.FadeOut is < 0 or > 10) throw new ArgumentException("淡入／淡出請輸入 0～10 秒。");
             history.Apply(next);
         }, false);
@@ -289,7 +300,7 @@ public partial class EditorPanel : UserControl
         try
         {
             string target = ClipLibrary.DeletionTarget(clip, root());
-            string message = clip.RecordingFolder is null ? "此音檔及它的編輯進度" : "這段原始錄音、電腦／麥克風分軌及編輯進度";
+            string message = clip.RecordingFolder is null ? "此音檔及它的編輯進度" : "這段原始錄音、語音／遊戲／電腦／麥克風分軌及編輯進度";
             if (MessageBox.Show(Window.GetWindow(this), $"將「{clip.Name}」移至資源回收筒？\n\n會移除：{message}。\n獨立存放的匯出成品不會被刪除。\n\n{target}", "刪除音檔", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
             StopPlayback();
             // Shell recycle dialogs require the UI's STA thread. No permanent-delete fallback.
@@ -317,7 +328,9 @@ public partial class EditorPanel : UserControl
             samples[i * 2] = samples[i * 2 + 1] = value;
         }
         string path = Path.Combine(recording, "混音.wav");
-        WaveExporter.WritePcm(path, samples, 2); WaveExporter.WritePcm(Path.Combine(recording, "電腦聲音.wav"), samples, 2);
+        bool applicationDemo = App.Arguments.Contains("--application-demo");
+        WaveExporter.WritePcm(path, samples, 2); WaveExporter.WritePcm(Path.Combine(recording, applicationDemo ? "語音聊天.wav" : "電腦聲音.wav"), samples, 2);
+        if (applicationDemo) WaveExporter.WritePcm(Path.Combine(recording, "遊戲.wav"), samples.Select(v => (short)(v / 2)).ToArray(), 2);
         WaveExporter.WritePcm(Path.Combine(recording, "麥克風.wav"), samples.Where((_, i) => i % 2 == 0).Select(v => (short)(v / 3)).ToArray(), 1);
         File.WriteAllText(Path.Combine(recording, "錄音資訊.json"), "{}");
         var demo = new LibraryClip(path, recording, "朋友的精彩反應 · 示範錄音", DateTime.Now, 12);
@@ -330,13 +343,14 @@ public partial class EditorPanel : UserControl
         await Change(() => history.Edit(EditAudio.Rate, 2 * EditAudio.Rate, "delete"));
         await Change(() => history.Edit(EditAudio.Rate, EditAudio.Rate * 3 / 2, "mute"));
         await Change(() => history.Undo()); await Change(() => history.Redo());
-        await Change(() => history.Apply(history.Current with { SystemGain = 0.7, MicrophoneGain = 0.3, FadeIn = 0.05, FadeOut = 0.1 }));
+        await Change(() => history.Apply(history.Current with { SystemGain = 0.7, MicrophoneGain = 0.3, GameGain = 0.4, FadeIn = 0.05, FadeOut = 0.1 }));
         bool timeline = history.Current.Frames == 4 * EditAudio.Rate && history.Current.Spans.Any(s => s.Muted);
         bool saved = SaveProject();
         string exported = Path.Combine(directory, "Exports", "示範音效.wav");
         await Task.Run(() => EditFiles.Export(audio, history.Current, exported, 192000, default));
         await OpenPath(path);
-        bool restored = history!.Current.Frames == 4 * EditAudio.Rate && Math.Abs(history.Current.SystemGain - 0.7) < 0.001;
+        bool restored = history!.Current.Frames == 4 * EditAudio.Rate && Math.Abs(history.Current.SystemGain - 0.7) < 0.001
+            && (!applicationDemo || audio!.Applications && audio.Game is not null && Math.Abs(history.Current.GameGain - 0.4) < 0.001);
         bool? preview = null;
         if (App.Arguments.Contains("--editor-preview"))
         {
