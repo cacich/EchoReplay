@@ -68,7 +68,23 @@ dotnet run --project .\tests\EchoReplay.Tests\EchoReplay.Tests.csproj -c Release
 
 這是自訂的主控台測試執行程式，**請使用 `dotnet run`**；目前沒有使用 xUnit／NUnit，不能以 `dotnet test` 的成功輸出推定這些測試已執行。
 
-目前有 13 項測試，覆蓋循環覆蓋、靜音缺口、時間對齊、快照、WAV 內容、混音、快捷鍵衝突與設定檔。全部通過時會輸出 `PASS: 13 tests`，失敗回傳非零結束碼。測試包含真實 Windows 熱鍵 API，因此需要 Windows；若測試快捷鍵被其他程式占用，請先關閉占用程式再測試。
+目前有 31 項測試，涵蓋錄音緩衝、WAV、熱鍵與設定，以及剪輯取樣邊界、連續刪除、靜音、分軌增益、淡化、復原／重做、進度、播放／匯出一致性、MP3 192／320 kbps 實際編解碼、取消、防覆寫、音檔庫與刪除範圍。全部通過時會輸出 `PASS: 31 tests`，失敗回傳非零結束碼。需 Windows 與可用的 Media Foundation MP3 編碼器；若測試快捷鍵被其他程式占用，請先關閉占用程式再測試。
+
+## 剪輯介面診斷
+
+使用隔離設定目錄（`RecordOnLaunch` 設為 `false`）啟動：
+
+```powershell
+$testRoot = Join-Path $PWD 'artifacts/test-editor'
+New-Item -ItemType Directory -Force -Path "$testRoot/profile" | Out-Null
+'{"RecordOnLaunch":false,"CaptureMicrophone":false}' | Set-Content -LiteralPath "$testRoot/profile/settings.json" -Encoding utf8
+$exe = Join-Path $PWD 'artifacts/EchoReplay-portable/EchoReplay.exe'
+$arguments = '--data-dir "{0}" --editor-diagnose "{1}"' -f "$testRoot/profile", "$testRoot/report.json"
+Start-Process -FilePath $exe -ArgumentList $arguments -WindowStyle Hidden -Wait
+Get-Content "$testRoot/report.json"
+```
+
+診斷會建立合成音檔，透過 WPF 剪輯器執行選取、裁切、接合、靜音、復原／重做、分軌效果、保存／重開、匯出及資源回收筒刪除，並輸出 PNG。只有診斷自己建立的匯入副本會被移至資源回收筒。選加 `--editor-preview` 會短暫播放合成音，並檢查播放串流有前進；CI 不要求實體播放裝置。
 
 ## 實機錄音診斷
 

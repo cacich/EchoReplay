@@ -34,7 +34,7 @@
 .\build-release.ps1 -InnoCompiler 'C:\Tools\Inno Setup 6\ISCC.exe'
 ```
 
-腳本會執行應用程式的 13 項測試，建置含 .NET 的可攜版，將指定的程式與文件加入獨立暫存目錄，再產生安裝 EXE、ZIP 與校驗值至 `artifacts/release`。不會從既有輸出目錄任意打包其他檔案。
+腳本會執行應用程式的 31 項測試，建置含 .NET 的可攜版，將指定的程式與文件加入獨立暫存目錄，再產生安裝 EXE、ZIP 與校驗值至 `artifacts/release`。不會從既有輸出目錄任意打包其他檔案。
 
 版本讀自 `src/EchoReplay/EchoReplay.csproj` 的 `Version`，目前接受 `major.minor.patch` 正式版格式。
 
@@ -55,7 +55,7 @@ git push origin v1.0.2
 
 1. 檢查標籤與專案版本、Release 說明檔一致。
 2. 設定 .NET，執行測試、建置與打包。
-3. 驗證安裝、啟動 WPF、執行中保護、重裝、解除安裝、資料保留及開機項目歸屬。
+3. 驗證安裝、啟動 WPF、剪輯器診斷與回收筒刪除、執行中保護、重裝、解除安裝、資料保留及開機項目歸屬。
 4. 保存建置附件與安裝診斷。
 5. 建立 Release 草稿，上傳三份附件，成功後才公開為最新版本。
 

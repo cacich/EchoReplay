@@ -74,6 +74,7 @@ jobs:
           path: |
             ${{ runner.temp }}/EchoReplay-installer-*/*.log
             ${{ runner.temp }}/EchoReplay-installer-*/*.png
+            ${{ runner.temp }}/EchoReplay-installer-*/*report.json
           if-no-files-found: ignore
           retention-days: 7
       - name: Publish release after all checks pass

@@ -58,6 +58,11 @@ try {
     Assert-True ($app.ExitCode -eq 0) 'Installed application failed.'
 } finally { if (-not $app.HasExited) { $app.Kill() } }
 Assert-True (Test-Path -LiteralPath $snapshot) 'Installed WPF application did not render.'
+$editorReport = Join-Path $testRoot 'editor-report.json'
+Run-Checked $exe ('--data-dir "{0}" --editor-diagnose "{1}"' -f $profileDir,$editorReport)
+$editorResult = Get-Content -LiteralPath $editorReport -Raw | ConvertFrom-Json
+Assert-True ($editorResult.Success -eq $true) ('Installed editor diagnostic failed: ' + ($editorResult | ConvertTo-Json -Compress))
+Assert-True (Test-Path -LiteralPath ([IO.Path]::ChangeExtension($editorReport, '.png'))) 'Editor screenshot missing.'
 $userAudio = Join-Path $installDir 'user-recording.wav'
 [IO.File]::WriteAllText($userAudio, 'retain user data')
 

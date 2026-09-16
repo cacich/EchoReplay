@@ -38,6 +38,8 @@ public partial class MainWindow : Window
     {
         this.settings = settings;
         InitializeComponent();
+        Editor.Configure(() => this.settings.OutputFolder);
+        Editor.ClipDeleted += path => { if (lastClip is not null && Path.Combine(lastClip, "混音.wav") == path) { lastClip = null; LastSavedText.Text = "最新原始錄音已刪除。"; PlayButton.IsEnabled = ShowClipButton.IsEnabled = false; } };
         foreach (var box in new[] { SaveKeyBox, ShowKeyBox })
         {
             box.GotKeyboardFocus += (_, _) => hotkeys?.Suspend();
@@ -87,11 +89,38 @@ public partial class MainWindow : Window
         if (settings.RecordOnLaunch || App.Arguments.Contains("--diagnose")) StartRecording();
         if (startupHotkeyWarning is not null) { SetNotice(startupHotkeyWarning, true); Notify("快捷鍵無法註冊", startupHotkeyWarning, true); }
         if (SettingsStore.LoadWarning is not null) SetNotice(SettingsStore.LoadWarning, true);
-        if (App.ArgumentValue("--ui-snapshot") is string snapshot)
+        if (App.ArgumentValue("--editor-diagnose") is string editorReport)
+        {
+            object result;
+            try
+            {
+                string folder = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(editorReport))!, "editor-clips");
+                settings = settings with { OutputFolder = folder };
+                LibraryTab.IsSelected = true; UpdateLayout();
+                double recordingBefore = engine.AvailableSeconds;
+                long packetsBefore = engine.SystemSource?.Packets ?? 0;
+                result = await Editor.Diagnose(folder);
+                if (engine.Running)
+                {
+                    bool continued = engine.AvailableSeconds > recordingBefore && (engine.SystemSource?.Packets ?? 0) > packetsBefore;
+                    result = new { Success = JsonSerializer.SerializeToElement(result).GetProperty("Success").GetBoolean() && continued,
+                        Editing = result, CaptureContinued = continued, SystemPackets = engine.SystemSource?.Packets ?? 0 };
+                }
+                UpdateLayout(); await Task.Delay(200);
+                SaveVisual(Path.ChangeExtension(editorReport, ".png"));
+                Editor.ScrollEffectsIntoView(); await Task.Delay(100);
+                SaveVisual(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(editorReport))!, "editor-effects.png"));
+            }
+            catch (Exception ex) { result = new { Success = false, Error = ex.ToString() }; }
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(editorReport))!);
+            File.WriteAllText(editorReport, JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
+            ExitApplication();
+        }
+        else if (App.ArgumentValue("--ui-snapshot") is string snapshot)
         {
             await Task.Delay(1200);
             SaveVisual(snapshot);
-            MainTabs.SelectedIndex = 1;
+            MainTabs.SelectedIndex = 2;
             UpdateLayout();
             await Task.Delay(300);
             SaveVisual(Path.Combine(Path.GetDirectoryName(snapshot)!, Path.GetFileNameWithoutExtension(snapshot) + "-settings.png"));
@@ -209,6 +238,7 @@ public partial class MainWindow : Window
             bool incomplete = engine.Running && (engine.SystemSource?.Connected != true || (settings.CaptureMicrophone && engine.MicrophoneSource?.Connected != true));
             lastClip = await engine.SaveAsync(settings with { });
             LastSavedText.Text = lastClip;
+            await Editor.RefreshLibrary();
             PlayButton.IsEnabled = ShowClipButton.IsEnabled = true;
             string message = "音檔已儲存：" + Path.GetFileName(lastClip);
             if (incomplete) message += "。部分來源未連線，請試聽確認。";
@@ -234,6 +264,7 @@ public partial class MainWindow : Window
     internal void ExitApplication()
     {
         if (engine.Saving) { SetNotice("正在儲存音檔，完成後即可結束程式。"); ShowAndActivate(); return; }
+        if (!Editor.TryClose()) { ShowAndActivate(); LibraryTab.IsSelected = true; return; }
         exiting = true;
         timer.Stop();
         hotkeys?.Dispose();
@@ -281,6 +312,7 @@ public partial class MainWindow : Window
             SettingsStore.Save(updated);
             bool restart = updated.Minutes != previous.Minutes || updated.OutputDeviceId != previous.OutputDeviceId || updated.MicrophoneDeviceId != previous.MicrophoneDeviceId || updated.CaptureMicrophone != previous.CaptureMicrophone;
             settings = updated;
+            _ = Editor.RefreshLibrary();
             UpdateLabels();
             if (restart && engine.Running) { StartRecording(); SetNotice("設定已儲存，已使用新的錄音設定重新開始累積。"); }
             else SetNotice("設定已儲存。" + (restart ? "新的錄音設定會在下次開始錄音時生效。" : ""));
@@ -322,11 +354,11 @@ public partial class MainWindow : Window
     private void Hide_Click(object sender, RoutedEventArgs e) => HideToTray();
     private void OpenOutput_Click(object sender, RoutedEventArgs e) => OpenFolder(settings.OutputFolder);
     private void ShowClip_Click(object sender, RoutedEventArgs e) { if (lastClip is not null) OpenFolder(lastClip); }
-    private void Play_Click(object sender, RoutedEventArgs e)
+    private async void Play_Click(object sender, RoutedEventArgs e)
     {
         if (lastClip is null) return;
-        try { Process.Start(new ProcessStartInfo(Path.Combine(lastClip, "混音.wav")) { UseShellExecute = true }); SetNotice("已用預設播放器開啟。播放的聲音也可能進入目前的電腦錄音。"); }
-        catch (Exception ex) { SetNotice("無法播放：" + ex.Message, true); }
+        LibraryTab.IsSelected = true;
+        await Editor.OpenPath(Path.Combine(lastClip, "混音.wav"));
     }
     private void SaveVisual(string path)
     {

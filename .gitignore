@@ -11,6 +11,8 @@ settings.json
 *.wav
 *.mp3
 *.flac
+*.echoedit.json
+*.label.json
 *.partial/
 .env
 .env.*

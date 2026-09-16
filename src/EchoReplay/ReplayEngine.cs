@@ -64,6 +64,8 @@ public sealed class ReplayEngine : IDisposable
                 SavedAt = DateTimeOffset.Now,
                 DurationSeconds = frames / (double)TimelineBuffer.SampleRate,
                 SampleRate = TimelineBuffer.SampleRate,
+                settings.SystemGain,
+                settings.MicrophoneGain,
                 SystemStatus = SystemSource?.Status ?? "已暫停",
                 MicrophoneStatus = MicrophoneSource?.Status ?? "未啟用／已暫停",
                 SystemDiscontinuities = SystemSource?.Discontinuities ?? 0,

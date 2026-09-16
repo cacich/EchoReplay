@@ -139,6 +139,7 @@ internal static class Program
                     () => { for (int i = 0; i < 300; i++) ring.Write(i * 480L, packet, 480); },
                     () => { for (int i = 0; i < 300; i++) Check(ring.Snapshot(i * 480L, 480).Length == 960, "snapshot length"); });
             });
+            EditingTests.RunAll(directory, Run, Check);
             Console.WriteLine($"PASS: {passed} tests");
             return 0;
         }
